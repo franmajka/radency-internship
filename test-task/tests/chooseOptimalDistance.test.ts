@@ -1,4 +1,4 @@
-import { chooseOptimalDistance } from "../Radency.Internship.Test-Task/chooseOptimalDistance";
+import { chooseOptimalDistance } from "../src/chooseOptimalDistance";
 
 
 describe('Choose optimal distance', () => {
