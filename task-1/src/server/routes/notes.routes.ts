@@ -1,18 +1,15 @@
 import { Router } from 'express';
+import { getAllNotesHandler, getNoteHandler } from '../services/notes.service';
 
 const router = Router();
 
-router.get('/', (req, res) => {
-
-});
+router.get('/', getAllNotesHandler);
 
 router.post('/', (req, res) => {
 
 });
 
-router.get('/notes/:id', (req, res) => {
-
-});
+router.get('/notes/:id', getNoteHandler);
 
 router.patch('/notes/:id', (req, res) => {
 

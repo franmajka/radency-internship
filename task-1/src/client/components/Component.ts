@@ -1,19 +1,45 @@
-export class Component {
-  private $element: HTMLElement;
+export interface IHandler {
+  eventType: keyof HTMLElementEventMap,
+  action: EventListener,
+};
 
-  private props: object;
-  private _state: object;
+export type IListener = IHandler & { $element: HTMLElement };
 
-  private listeners: {eventType: keyof HTMLElementEventMap, action: EventListener}[];
+export interface IStateDefault {
 
-  private children: Component[];
+};
 
-  constructor({$element, props = {}, initialState = {}}
-    : {$element: HTMLElement, props: object, initialState: object}) {
+type IDefaultState<IState> = {
+  [key in keyof IState]?: IState[key]
+}
+
+export interface IChild{
+  insertChild(): void,
+  child: Component
+}
+
+export class Component<IState extends IStateDefault = IStateDefault> {
+  public $element: HTMLElement;
+
+  // Thus there is no optimization in rendering component
+  // there is no need to split data into state and props
+  protected _state: IState;
+  private defaultState: IDefaultState<IState>;
+
+  protected listeners: IListener[];
+
+  protected children: IChild[];
+
+  constructor({$element, initialState, defaultState = {}}
+    : {
+      $element: HTMLElement,
+      initialState: IState,
+      defaultState?: IDefaultState<IState>
+    }) {
     this.$element = $element;
 
-    this.props = props;
-    this._state = initialState;
+    this.defaultState = defaultState;
+    this._state = this.computeState(initialState);
 
     this.listeners = [];
 
@@ -23,56 +49,83 @@ export class Component {
     this.render();
   }
 
-  private shouldComponentUpdate() : boolean {
-    return true;
+  private computeState(state: IState) {
+    return {
+      ...this.defaultState,
+      ...state,
+    }
   }
 
-  private componentDidUpdate() {
-
+  protected shouldComponentUpdate(newState: IState) : boolean {
+    return JSON.stringify(this._state) !== JSON.stringify(newState);
   }
 
-  private get state() : object {
+  private removeChildren() {
+    while (this.$element.firstChild) {
+      this.$element.removeChild(this.$element.firstChild);
+    }
+  }
+
+  private removeEventListeners() {
+    for (const listener of this.listeners) {
+      listener.$element.removeEventListener(listener.eventType, listener.action);
+    }
+  }
+
+  protected componentWillUpdate() {
+    this.removeEventListeners();
+    this.removeChildren();
+  }
+
+  protected componentDidUpdate() {
+    for (const {insertChild} of this.children) {
+      insertChild.call(this);
+    }
+  }
+
+  public get state() : IState {
     return this._state;
   }
 
-  private set state(state: object) {
-    this._state = state;
-    if (this.shouldComponentUpdate()) {
+  public setState(newState: IState) {
+    newState = this.computeState(newState);
+    if (this.shouldComponentUpdate(newState)) {
+      this._state = newState;
+
+      this.componentWillUpdate();
       this.render();
       this.componentDidUpdate();
     }
   }
 
-  listen(eventType: keyof HTMLElementEventMap, action: EventListener) {
-    this.$element.addEventListener(eventType, action);
-    this.listeners.push({eventType, action});
+  public listen({$element = this.$element, eventType, action} : IListener) {
+    $element.addEventListener(eventType, action);
+    this.listeners.push({$element, eventType, action});
   }
 
-  componentDidMount() {
+  protected componentDidMount() {
 
   }
 
-  private componentWillUnmount() {
-    for (const listener of this.listeners) {
-      this.$element.removeEventListener(listener.eventType, listener.action);
-    }
-
-    for (const child of this.children) {
-      child.componentWillUnmount();
-    }
+  protected componentWillUnmount() {
+    this.removeEventListeners()
   }
 
-  private destroy() {
+  public destroy() {
     this.componentWillUnmount();
+
+    for (const {child} of this.children) {
+      child.destroy();
+    }
 
     this.$element.remove();
   }
 
-  private render() {
+  protected render() {
 
   }
 
-  private addChild(child: Component) {
-    this.children.push(child);
+  public addChildComponent({insertChild, child} : IChild) {
+    this.children.push({insertChild, child});
   }
 }
