@@ -5,6 +5,10 @@ export interface IHandler {
 
 export type IListener = IHandler & { $element: HTMLElement };
 
+export interface IPropsDefault {
+
+};
+
 export interface IStateDefault {
 
 };
@@ -18,7 +22,10 @@ export interface IChild{
   child: Component
 }
 
-export class Component<IState extends IStateDefault = IStateDefault> {
+export class Component<
+  IProps extends IPropsDefault = IPropsDefault,
+  IState extends IStateDefault = IStateDefault,
+> {
   public $element: HTMLElement;
 
   // Thus there is no optimization in rendering component
