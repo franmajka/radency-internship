@@ -64,9 +64,12 @@ const clientConfig = (env, options) => ({
     extensions: ['.tsx', '.ts', '.js'],
   },
   output: {
+    publicPath: '/',
     filename: '[name].[contenthash].js',
     path: path.resolve(__dirname, 'dist'),
-    ...(options.mode === 'development' ? {devtoolModuleFilenameTemplate: '[absolute-resource-path]'} : {}),
+    ...(options.mode === 'development' ? {
+      devtoolModuleFilenameTemplate: '[absolute-resource-path]'
+    } : {}),
   },
   optimization: {
     splitChunks: {

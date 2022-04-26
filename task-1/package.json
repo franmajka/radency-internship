@@ -6,7 +6,7 @@
   "scripts": {
     "build:dev": "webpack --mode=development",
     "build:prod": "webpack --mode=production",
-    "dev": "webpack --watch --mode=development",
+    "watch": "webpack --watch --mode=development",
     "start:dev": "npm run build:dev && NODE_PATH=. node dist/server.bundle.js",
     "start:prod": "npm run build:prod && NODE_PATH=. node dist/server.bundle.js",
     "start": "npm run start:dev"
