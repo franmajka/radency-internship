@@ -1,20 +1,14 @@
 import { AnyAction } from "../pseudo-redux/types/Action"
-import { Selector } from "../pseudo-redux/types/Selector"
 import { Store } from "../pseudo-redux/types/Store"
-import { BaseHook } from "./hooks/types"
+import { BaseHook, DefaultHooks, DefinedHooks } from "./hooks/types"
+import { useParams } from "./router/Route"
+import { compareFunctions } from "./utils/compareFunctions"
 import { compareObjects } from "./utils/compareObjects"
 import { VNode, VNodeMinimized } from "./VNode"
 
-export type DefaultHooks<State> = {
-  useDispatch: () => (action: AnyAction) => AnyAction,
-  useSelector: <Ret>(selector: Selector<State, Ret>) => ReturnType<Selector<State, Ret>>
-}
 
-type DefinedHooks<
-  DefinableHooks extends Record<string, (hooks: any) => BaseHook>
-> = {
-  [HookName in keyof DefinableHooks]: ReturnType<DefinableHooks[HookName]>
-}
+
+
 
 type CreateAppConf<
   State,
@@ -34,7 +28,14 @@ export const createApp = (
   ({ store, root, treeCreator, definedHooks } : CreateAppConf<State, DefinableHooks>) => {
     const defaultHooks: DefaultHooks<State> = {
       useDispatch: () => store.dispatch,
-      useSelector: selector => selector(store.getState())
+      useSelector: selector => selector(store.getState()),
+      // Gives only way to not reload component every time
+      // it work with functions
+      useCallback: (callback, deps) => {
+        (callback as any).deps = deps;
+        return callback as any;
+      },
+      useParams
     }
 
     const hooks = {
@@ -51,19 +52,32 @@ export const createApp = (
     };
 
 
-    function prepareVNode(minimizedNode: VNodeMinimized): VNode {
-      if (minimizedNode.children) {
-        for (let i = 0; i < minimizedNode.children.length; i++) {
-          const child = minimizedNode.children[i];
-          if (typeof child === 'function') {
-            const childNode = prepareVNode(child(hooks));
+    type VNodeChildren = Exclude<VNode['children'], undefined>;
+    // Mutates node
+    function prepareVNode(minimizedNode: VNodeMinimized): VNodeChildren {
+      const children: VNodeChildren = [];
 
-            minimizedNode.children[i] = childNode;
+      if (minimizedNode.children) {
+        minimizedNode.children.forEach(child => {
+          if (typeof child === 'string') {
+            children.push(child);
+            return;
           }
-        }
+
+          // Component
+          if (typeof child === 'function') {
+            children.push(...prepareVNode(child(hooks)));
+            return;
+          }
+
+          // Will deal with fragments and already expanded nodes
+          children.push(...prepareVNode(child));
+        })
+
+        minimizedNode.children = children;
       }
 
-      return minimizedNode as VNode;
+      return minimizedNode.tag === null ? children : [minimizedNode as VNode];
     }
 
     function treeToHTML(tree: VNode | string): ChildNode {
@@ -81,7 +95,7 @@ export const createApp = (
 
       if (tree.events) {
         Object.entries(tree.events).forEach(([type, listener]) => {
-          element.addEventListener(type, listener);
+          element.addEventListener(type, listener as EventListener);
         })
       }
 
@@ -114,68 +128,111 @@ export const createApp = (
       return sameTag && sameAttributes && sameEvents;
     }
 
+
     function reconciliation(
-      domNode: ChildNode,
-      previousTree: VNode,
-      newTree: VNode
+      domNode: HTMLElement,
+      previousTree: VNode | VNodeChildren,
+      newTree: VNode | VNodeChildren
     ) {
-      if (!compareNodes(previousTree, newTree)) {
-        domNode.replaceWith(treeToHTML(newTree));
-      }
+      const getChildren = (tree: typeof newTree) => Array.isArray(tree) ? tree : tree.children
+      const previousChildren = getChildren(previousTree) ?? [];
+      const newChildren = getChildren(newTree) ?? [];
 
-      if (previousTree.children === undefined && newTree.children !== undefined) {
-        newTree.children.forEach(child => domNode.appendChild(treeToHTML(child)));
+      if (
+        !(Array.isArray(previousTree) || Array.isArray(newTree)) &&
+        !compareNodes(previousTree, newTree)
+      ) {
+        if (previousTree.tag !== newTree.tag) {
+          const newNodeChild = treeToHTML(newTree);
+          domNode.replaceWith(newNodeChild);
 
-        return;
-      }
-
-      if (previousTree.children !== undefined && newTree.children === undefined) {
-        while (domNode.firstChild) {
-          domNode.removeChild(domNode.firstChild);
+          return newNodeChild;
         }
 
-        return;
-      }
 
-      // Or for ts purposes
-      if (previousTree.children === undefined || newTree.children === undefined) {
-        return;
+        const previousAttributes = previousTree.attributes ?? {};
+        const newAttributes = newTree.attributes ?? {};
+
+        Object.keys(newAttributes).forEach(attribute => {
+          if (newAttributes[attribute] !== previousAttributes[attribute]) {
+            domNode.setAttribute(attribute, newAttributes[attribute]);
+          }
+        });
+
+        Object.keys(previousAttributes).forEach(attribute => {
+          if (!(attribute in newAttributes)) {
+            domNode.removeAttribute(attribute);
+          }
+        })
+
+
+        const previousEvents = previousTree.events ?? {};
+        const newEvents = newTree.events ?? {};
+
+        (<(keyof typeof newEvents)[]>Object.keys(newEvents))
+          .forEach(event => {
+            if (!compareFunctions(previousEvents[event], newEvents[event])) {
+              if (previousEvents[event]) {
+                domNode.removeEventListener(event, previousEvents[event] as EventListener);
+              }
+
+              domNode.addEventListener(event, newEvents[event] as EventListener);
+            }
+          });
+
+        (<(keyof typeof previousEvents)[]>Object.keys(previousEvents))
+          .forEach(event => {
+            if (!(event in newEvents)) {
+              domNode.removeEventListener(event, previousEvents[event] as EventListener);
+            }
+          });
       }
 
       let currentChild: ChildNode | null | undefined = domNode.firstChild;
-      for (let i = 0; i < newTree.children.length; i++, currentChild = currentChild?.nextSibling) {
-        const previousChild = previousTree.children[i];
-        const newChild = newTree.children[i];
+      for (let i = 0; i < newChildren.length; i++, currentChild = currentChild?.nextSibling) {
+        const previousChild = previousChildren[i];
+        const newChild = newChildren[i];
 
-        if (!compareNodes(previousChild, newChild)) {
-          if (!currentChild) {
-            domNode.appendChild(treeToHTML(newChild));
-
-            continue;
-          }
-
-          const newNodeChild = treeToHTML(newChild);
-          currentChild.replaceWith(newNodeChild);
-
-          currentChild = newNodeChild;
+        if (previousChild === undefined) {
+          domNode.appendChild(treeToHTML(newChild));
           continue;
         }
 
-        if (typeof previousChild !== 'string' && typeof newChild !== 'string') {
-          reconciliation(currentChild!, previousChild, newChild)
+        if (typeof previousChild === 'string' || typeof newChild === 'string') {
+          if (previousChild !== newChild) {
+            const newNodeChild = treeToHTML(newChild);
+            currentChild!.replaceWith(newNodeChild);
+            currentChild = newNodeChild;
+          }
+          continue;
         }
+
+        currentChild = reconciliation(currentChild as HTMLElement, previousChild, newChild)
       }
+
+      let nextChild = currentChild?.nextSibling;
+      while (currentChild) {
+        currentChild.remove();
+
+        currentChild = nextChild;
+        nextChild = currentChild?.nextSibling;
+      }
+
+      return domNode;
     }
 
 
     let tree = prepareVNode(treeCreator(hooks));
-    root.appendChild(treeToHTML(tree));
+    tree.forEach(subTree => root.appendChild(treeToHTML(subTree)));
 
-    store.subscribe(() => {
+    const notifyApp = () => {
       const newTree = prepareVNode(treeCreator(hooks));
-      reconciliation(root.firstChild!, tree, newTree);
+      reconciliation(root, tree, newTree);
       tree = newTree;
-    });
+    }
+
+    window.addEventListener('popstate', notifyApp);
+    store.subscribe(notifyApp);
 
     return { hooks }
   }

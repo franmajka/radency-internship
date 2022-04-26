@@ -6,7 +6,7 @@ type CreateElementConf<
   Props extends BaseProps,
   Hooks extends BaseHooks
 > = {
-  type: VNode['tag'] | Component<Props, Hooks>,
+  type: VNode['tag'] | Component<Props, Hooks> | null,
   attributes?: Props,
   events?: VNode['events'],
   children?: VNodeMinimized['children']
@@ -17,10 +17,17 @@ type CreateElementConf<
 export function createElement<
   Attrs extends BaseProps
 >(options: {
-  type: VNodeMinimized['tag'],
+  type: VNode['tag'],
   attributes?: Attrs,
   events?: VNodeMinimized['events'],
   children?: VNodeMinimized['children']
+}): () => VNodeMinimized
+
+export function createElement<
+  Attrs extends BaseProps
+>(options: {
+  type: null,
+  children: VNodeMinimized['children']
 }): () => VNodeMinimized
 
 export function createElement<
@@ -44,6 +51,13 @@ export function createElement(
       events,
       children
     });
+  }
+
+  if (type === null) {
+    return () => ({
+      tag: type,
+      children
+    })
   }
 
   return hooks => type({

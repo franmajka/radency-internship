@@ -2,7 +2,7 @@ export interface VNode {
   tag: keyof HTMLElementTagNameMap,
   attributes?: Record<string, any>,
   events?: {
-    [key in keyof WindowEventMap]?: EventListener
+    [key in keyof HTMLElementEventMap]?: (e: HTMLElementEventMap[key]) => void
   },
   children?: (
     VNode |
@@ -11,10 +11,10 @@ export interface VNode {
 }
 
 export interface VNodeMinimized {
-  tag: keyof HTMLElementTagNameMap,
+  tag: keyof HTMLElementTagNameMap | null,
   attributes?: Record<string, any>,
   events?: {
-    [key in keyof WindowEventMap]?: EventListener
+    [key in keyof HTMLElementEventMap]?: (e: HTMLElementEventMap[key]) => void
   },
   children?: (
     ((...args: any[]) => VNodeMinimized) |

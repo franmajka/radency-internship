@@ -1,3 +1,4 @@
+// Crude deep compare
 export function compareObjects(
   lhs: Record<string, any> | undefined,
   rhs: Record<string, any> | undefined
@@ -11,6 +12,20 @@ export function compareObjects(
     if (typeof lhs[key] === 'object' || typeof rhs[key] === 'object') {
       return compareObjects(lhs[key], rhs[key]);
     }
+
+    // Check for memoized callbacks
+    if (
+      (typeof lhs[key] === 'function' && typeof rhs[key] === 'function') &&
+      (lhs[key].toString() === rhs[key].toString()) &&
+      (Array.isArray(lhs[key].deps) && Array.isArray(rhs[key].deps))
+    ) {
+      return compareObjects(lhs[key].deps, rhs[key].deps)
+    }
+
+    if (
+      (lhs[key] instanceof Date && rhs[key] instanceof Date) ||
+      (lhs[key] instanceof RegExp && rhs[key] instanceof RegExp)
+    ) return lhs[key].toString() === rhs[key].toString();
 
     return lhs[key] === rhs[key]
   });
