@@ -1,9 +1,9 @@
-import { Categories } from "./models/note.model";
+import { Category } from "./models/note.model";
 import { createNote } from "./services/notes.service";
 
 const NOTES: {
   name: string,
-  category: keyof typeof Categories
+  category: Category
   content: string,
 }[] = [
   {

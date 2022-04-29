@@ -1,7 +1,7 @@
 import { v4 } from 'uuid';
 import { NoteNotFoundError } from '../errors/notes.errors';
 import { parseDates } from '../helpers/parseDates';
-import { Categories, editableNoteProps, EditNoteInput, Note, NoteInput } from '../models/note.model';
+import { categories, Category, editableNoteProps, EditNoteInput, Note, NoteInput } from '../models/note.model';
 import * as notesRepo from '../repositories/notes.repository'
 
 export const getAllNotes = () => notesRepo.getAllNotes();
@@ -32,14 +32,12 @@ export const deleteNote = (id: string) => {
 }
 
 type Stats = {
-  -readonly [key in keyof typeof Categories]: number
+  [key in Category]: number
 }
 
 export const getStats = () => {
   const stats = Object.fromEntries(
-    Object.keys(Categories)
-      .filter(key => isNaN(+key)) // For getting rid of shortcomings of enum implementation
-      .map(category => [category, 0])
+    categories.map(category => [category, 0])
   ) as Stats;
 
   getAllNotes()

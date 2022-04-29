@@ -1,19 +1,18 @@
 import { date, InferType, mixed, object, reach, string } from 'yup';
 
-// It works kinda bad with const array
-export enum Categories {
+export const categories = [
   'Task',
+  'Quote',
   'Random Though',
   'Idea',
-  'Quote'
-};
+] as const;
+
+export type Category = (typeof categories)[number]
 
 export const noteSchema = object({
   name: string().required(),
   content: string().required(),
-  category: mixed<keyof typeof Categories>()
-    .oneOf(Object.keys(Categories).filter(key => isNaN(+key)) as any)
-    .required(),
+  category: mixed<Category>().oneOf([...categories]).required(),
   date: date().default(() => new Date),
 });
 
